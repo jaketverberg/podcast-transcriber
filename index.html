@@ -598,16 +598,20 @@ async function startTranscription(mode) {
         corsOk = probe.ok;
       } catch {}
 
-      if (!corsOk) {
+      if (corsOk) {
+        audioSrc = currentMeta.audioUrl;
+      } else {
+        // Direct fetch blocked — route through a CORS proxy.
+        // The audio still gets processed locally by Whisper; only the download
+        // step passes through the proxy server.
+        const PROXY = 'https://corsproxy.io/?';
+        audioSrc = PROXY + encodeURIComponent(currentMeta.audioUrl);
         showNotice(
-          'The podcast host blocks direct browser access (CORS restriction). ' +
-          'Click "Download MP3" above to save the episode, then drag-and-drop it into the upload zone.',
-          'warn'
+          'Podcast host blocks direct access — fetching via CORS proxy (corsproxy.io). ' +
+          'Audio is still transcribed locally on your device.',
+          'info'
         );
-        document.querySelectorAll('#ep-actions .btn:not(.btn-ghost)').forEach(b => b.disabled = false);
-        return;
       }
-      audioSrc = currentMeta.audioUrl;
     }
 
     // ── run transcription ──
