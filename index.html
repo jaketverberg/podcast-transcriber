@@ -597,6 +597,44 @@ async function loadModel(modelId) {
 }
 
 // ─────────────────────────────────────────────────────────────
+//  Blocked-download fallback UI
+// ─────────────────────────────────────────────────────────────
+function showBlockedDownloadUI() {
+  clearNotices();
+  const actions = $('ep-actions');
+  actions.innerHTML = '';
+
+  const banner = document.createElement('div');
+  banner.className = 'notice notice-warn';
+  banner.style.cssText = 'width:100%; margin-bottom:0.75rem;';
+  banner.innerHTML =
+    '<strong>This podcast host blocks automated downloads.</strong> ' +
+    'Download the MP3 file using the button below, then drop it into the upload zone.';
+  actions.appendChild(banner);
+
+  if (currentMeta?.audioUrl) {
+    const dl = Object.assign(document.createElement('a'), {
+      href: currentMeta.audioUrl,
+      className: 'btn',
+      textContent: 'Download MP3',
+    });
+    dl.setAttribute('download', '');
+    dl.setAttribute('target', '_blank');
+    actions.appendChild(dl);
+  }
+
+  // Scroll to and highlight the drop zone so the next step is obvious
+  const dz = $('drop-zone');
+  dz.style.borderColor = 'var(--accent)';
+  dz.style.background  = 'rgba(137,180,250,0.06)';
+  dz.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // Reset the border once they interact with the drop zone
+  dz.addEventListener('click',    () => { dz.style.borderColor = ''; dz.style.background = ''; }, { once: true });
+  dz.addEventListener('dragenter', () => { dz.style.borderColor = ''; dz.style.background = ''; }, { once: true });
+}
+
+// ─────────────────────────────────────────────────────────────
 //  Transcription
 // ─────────────────────────────────────────────────────────────
 async function startTranscription(mode) {
@@ -667,7 +705,17 @@ async function startTranscription(mode) {
           break;
         } catch (e) { lastErr = e; }
       }
-      if (lastErr) throw new Error(`Could not download audio: ${lastErr.message}`);
+      if (lastErr) {
+        const is403 = lastErr.message.includes('403') || lastErr.message.includes('401');
+        stopProgress();
+        hide('card-progress');
+        document.querySelectorAll('#ep-actions .btn:not(.btn-ghost)').forEach(b => b.disabled = false);
+        if (is403) {
+          showBlockedDownloadUI();
+          return;
+        }
+        throw new Error(`Could not download audio: ${lastErr.message}`);
+      }
     }
 
     // ── run transcription ──
