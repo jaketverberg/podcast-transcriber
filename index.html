@@ -934,47 +934,48 @@ function aaiToWhisperFormat(data) {
 // ─────────────────────────────────────────────────────────────
 //  Blocked-download fallback UI
 // ─────────────────────────────────────────────────────────────
-function showBlockedDownloadUI() {
+function showBlockedDownloadUI(aaiError = null) {
   clearNotices();
   const actions = $('ep-actions');
   actions.innerHTML = '';
 
-  const banner = document.createElement('div');
-  banner.className = 'notice notice-warn';
-  banner.style.cssText = 'width:100%; margin-bottom:0.75rem;';
-  banner.innerHTML =
-    '<strong>This podcast host blocks automated downloads.</strong> ' +
-    'Download the MP3, then drop it into the upload zone below.';
-  actions.appendChild(banner);
+  // If AAI was tried and failed, say so briefly
+  if (aaiError) {
+    const errNote = document.createElement('div');
+    errNote.className = 'notice notice-warn';
+    errNote.style.cssText = 'width:100%;margin-bottom:0.75rem;';
+    errNote.innerHTML = `<strong>AssemblyAI also failed:</strong> ${esc(aaiError)} — use the manual steps below.`;
+    actions.appendChild(errNote);
+  }
+
+  // Step-by-step instructions
+  const steps = document.createElement('div');
+  steps.style.cssText = 'width:100%;margin-bottom:0.9rem;font-size:0.875rem;line-height:1.7;';
+  steps.innerHTML = `
+    <div style="color:var(--fg2);margin-bottom:0.4rem">This podcast host blocks automated downloads. Two quick steps:</div>
+    <div><strong style="color:var(--accent)">1.</strong> Click the button below to download the episode.</div>
+    <div><strong style="color:var(--accent)">2.</strong> Drop the downloaded file into the upload zone — it will pick up the episode title and date automatically.</div>
+  `;
+  actions.appendChild(steps);
 
   if (currentMeta?.audioUrl) {
     const dl = Object.assign(document.createElement('a'), {
-      href: currentMeta.audioUrl, className: 'btn', textContent: 'Download MP3',
+      href: currentMeta.audioUrl,
+      className: 'btn',
+      textContent: '⬇ Step 1 — Download Episode',
     });
-    dl.setAttribute('download', ''); dl.setAttribute('target', '_blank');
+    dl.setAttribute('target', '_blank');
     actions.appendChild(dl);
   }
 
-  // If no AAI key configured, suggest it as a permanent fix
-  if (!STORE.aaiKey) {
-    const tip = document.createElement('div');
-    tip.className = 'notice notice-info';
-    tip.style.cssText = 'width:100%;margin-top:0.5rem;';
-    tip.innerHTML = 'Add an <strong id="link-to-settings" style="cursor:pointer;text-decoration:underline">AssemblyAI API key in Settings</strong> to skip this step automatically next time.';
-    actions.appendChild(tip);
-    setTimeout(() => {
-      document.getElementById('link-to-settings')
-        ?.addEventListener('click', () => $('btn-open-settings').click());
-    }, 0);
-  }
-
-  // Highlight drop zone
+  // Highlight drop zone and update its label
   const dz = $('drop-zone');
+  dz.querySelector('p strong').textContent = 'Step 2 — Drop downloaded file here';
   dz.style.borderColor = 'var(--accent)';
   dz.style.background  = 'rgba(137,180,250,0.06)';
   dz.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  dz.addEventListener('click',     () => { dz.style.borderColor = ''; dz.style.background = ''; }, { once: true });
-  dz.addEventListener('dragenter',  () => { dz.style.borderColor = ''; dz.style.background = ''; }, { once: true });
+  dz.addEventListener('click',      () => { dz.style.borderColor = ''; dz.style.background = ''; dz.querySelector('p strong').textContent = 'Click to browse'; }, { once: true });
+  dz.addEventListener('dragenter',  () => { dz.style.borderColor = ''; dz.style.background = ''; dz.querySelector('p strong').textContent = 'Click to browse'; }, { once: true });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1057,8 +1058,8 @@ async function startTranscription(mode) {
             return;
           } catch (aaiErr) {
             stopProgress(); hide('card-progress');
-            showNotice(`AssemblyAI fallback failed: ${aaiErr.message}`, 'error');
             document.querySelectorAll('#ep-actions .btn:not(.btn-ghost)').forEach(b => b.disabled = false);
+            showBlockedDownloadUI(aaiErr.message);
             return;
           }
         }
