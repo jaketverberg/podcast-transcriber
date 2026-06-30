@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Podcast → Obsidian Transcriber</title>
+<style>
+:root {
+  --bg0: #1e1e2e;
+  --bg1: #252535;
+  --bg2: #2e2e45;
+  --bg3: #383852;
+  --fg0: #cdd6f4;
+  --fg1: #a6adc8;
+  --fg2: #6c7086;
+  --accent: #89b4fa;
+  --accent2: #74c7ec;
+  --green: #a6e3a1;
+  --yellow: #f9e2af;
+  --red: #f38ba8;
+  --border: #45475a;
+  --r: 8px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg0);
+  color: var(--fg0);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  padding: 2rem 1rem 4rem;
+}
+.wrap { max-width: 780px; margin: 0 auto; }
+
+/* ── header ── */
+header { text-align: center; margin-bottom: 2.5rem; }
+header h1 { font-size: 1.75rem; color: var(--accent); letter-spacing: -0.02em; }
+header p { color: var(--fg1); font-size: 0.875rem; margin-top: 0.35rem; }
+
+/* ── cards ── */
+.card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+.card-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg2);
+  margin-bottom: 1rem;
+}
+
+/* ── form elements ── */
+.row { display: flex; gap: 0.5rem; }
+input[type="url"], input[type="text"], select {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--fg0);
+  font-size: 0.9rem;
+  padding: 0.7rem 1rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus { border-color: var(--accent); }
+select { flex: none; cursor: pointer; }
+
+btn, .btn {
+  display: inline-block;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--r);
+  color: #1e1e2e;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 700;
+  padding: 0.7rem 1.4rem;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--accent2); }
+.btn:active { transform: scale(0.97); }
+.btn:disabled { background: var(--border); color: var(--fg2); cursor: not-allowed; transform: none; }
+.btn-ghost {
+  background: var(--bg3);
+  color: var(--fg0);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { background: var(--border); }
+
+/* ── drop zone ── */
+.divider {
+  display: flex; align-items: center; gap: 0.75rem;
+  color: var(--fg2); font-size: 0.8rem; margin: 1.1rem 0;
+}
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--r);
+  padding: 1.75rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  position: relative;
+}
+.drop-zone:hover, .drop-zone.over {
+  border-color: var(--accent);
+  background: rgba(137, 180, 250, 0.04);
+}
+.drop-zone input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.drop-zone .dz-icon { font-size: 2rem; margin-bottom: 0.4rem; }
+.drop-zone p { color: var(--fg1); font-size: 0.875rem; }
+.drop-zone p strong { color: var(--fg0); }
+.drop-zone .dz-hint { font-size: 0.78rem; color: var(--fg2); margin-top: 0.2rem; }
+
+/* ── episode display ── */
+.ep-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem; }
+.ep-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 1.5rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.875rem;
+}
+.ep-grid .lbl { color: var(--fg2); }
+.ep-desc {
+  color: var(--fg1);
+  font-size: 0.83rem;
+  max-height: 72px;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+  padding-right: 0.5rem;
+}
+.ep-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+
+/* ── model settings ── */
+.settings-row {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  font-size: 0.85rem; color: var(--fg1); margin-bottom: 1rem;
+}
+.settings-row select { padding: 0.45rem 0.75rem; font-size: 0.85rem; }
+.badge {
+  background: rgba(166, 227, 161, 0.12);
+  color: var(--green);
+  border-radius: 4px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* ── progress ── */
+.prog-label {
+  display: flex; justify-content: space-between;
+  font-size: 0.83rem; margin-bottom: 0.4rem;
+}
+.prog-label .pct { color: var(--accent); }
+progress {
+  width: 100%; height: 6px; appearance: none;
+  border-radius: 3px; overflow: hidden; display: block; margin-bottom: 0.6rem;
+}
+progress::-webkit-progress-bar { background: var(--bg3); border-radius: 3px; }
+progress::-webkit-progress-value { background: var(--accent); border-radius: 3px; transition: width 0.4s; }
+progress::-moz-progress-bar { background: var(--accent); border-radius: 3px; }
+.prog-sub { font-size: 0.82rem; color: var(--fg2); }
+
+/* ── output ── */
+.out-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.out-header .title-row { display: flex; align-items: center; gap: 0.5rem; }
+.out-actions { display: flex; gap: 0.5rem; }
+.out-pre {
+  background: var(--bg0);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 1rem 1.1rem;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  max-height: 440px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.out-tip {
+  font-size: 0.78rem;
+  color: var(--fg2);
+  margin-top: 0.75rem;
+}
+.out-tip code {
+  background: var(--bg3);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+  font-family: monospace;
+}
+
+/* ── notices ── */
+.notice {
+  border-radius: var(--r);
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+.notice-info  { background: rgba(137,180,250,0.08); border: 1px solid rgba(137,180,250,0.25); color: var(--accent); }
+.notice-warn  { background: rgba(249,226,175,0.08); border: 1px solid rgba(249,226,175,0.25); color: var(--yellow); }
+.notice-error { background: rgba(243,139,168,0.08); border: 1px solid rgba(243,139,168,0.25); color: var(--red); }
+
+/* ── file-ready pill ── */
+.file-pill {
+  display: flex; align-items: center; gap: 0.75rem;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 0.65rem 1rem;
+  font-size: 0.85rem; margin-bottom: 0.9rem;
+}
+.file-pill .fp-name { font-weight: 600; color: var(--fg0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+.file-pill .fp-size { color: var(--fg2); margin-left: auto; }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Podcast → Obsidian Transcriber</h1>
+  <p>Transcribes podcast episodes locally in your browser — no accounts, no uploads, no cost.<br>
+     Outputs LLM Wiki-compatible Raw Source notes ready to drop into your vault.</p>
+</header>
+
+<!-- ── STEP 1: SOURCE ── -->
+<div class="card" id="card-source">
+  <div class="card-label">Step 1 — Source</div>
+
+  <div class="row">
+    <input type="url" id="url-input"
+           placeholder="Paste Apple Podcasts URL…"
+           autocomplete="off" spellcheck="false">
+    <button class="btn" id="btn-fetch">Fetch</button>
+  </div>
+
+  <div class="divider">or upload an audio file</div>
+
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" accept=".mp3,.m4a,.wav,.ogg,.flac,.aac">
+    <div class="dz-icon">🎙️</div>
+    <p><strong>Click to browse</strong> or drag & drop</p>
+    <p class="dz-hint">MP3 · M4A · WAV · OGG · FLAC · AAC</p>
+  </div>
+</div>
+
+<!-- ── STEP 2: EPISODE ── -->
+<div class="card hidden" id="card-episode">
+  <div class="card-label">Step 2 — Episode</div>
+  <div id="ep-body"></div>
+
+  <div class="settings-row">
+    <span>Model quality:</span>
+    <select id="model-select">
+      <option value="onnx-community/whisper-tiny.en">Tiny (80 MB) — fastest, lower accuracy</option>
+      <option value="onnx-community/whisper-base.en" selected>Base (145 MB) — recommended ✓</option>
+      <option value="onnx-community/whisper-small.en">Small (460 MB) — best accuracy, slower</option>
+    </select>
+  </div>
+
+  <div id="ep-actions" class="ep-actions"></div>
+</div>
+
+<!-- ── STEP 3: PROGRESS ── -->
+<div class="card hidden" id="card-progress">
+  <div class="card-label">Step 3 — Transcribing</div>
+  <div id="progress-body"></div>
+</div>
+
+<!-- ── STEP 4: OUTPUT ── -->
+<div class="card hidden" id="card-output">
+  <div class="out-header">
+    <div class="title-row">
+      <span class="card-label" style="margin-bottom:0">Step 4 — Output</span>
+      <span class="badge">Ready</span>
+    </div>
+    <div class="out-actions">
+      <button class="btn btn-ghost" id="btn-copy">Copy</button>
+      <button class="btn" id="btn-download">Download .md</button>
+    </div>
+  </div>
+  <pre class="out-pre" id="out-pre"></pre>
+  <p class="out-tip">
+    Save this file to <code>Raw/Sources/</code> in your LLM Wiki vault,
+    then run <code>wiki_tool.py source-scan --update</code> to register it.
+  </p>
+</div>
+
+<!-- ── ERRORS ── -->
+<div id="error-area"></div>
+
+</div><!-- /wrap -->
+
+<script type="module">
+// ─────────────────────────────────────────────────────────────
+//  Transformers.js v3
+// ─────────────────────────────────────────────────────────────
+import { pipeline, env }
+  from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3/dist/transformers.min.js';
+
+env.allowLocalModels = false;
+env.useBrowserCache  = true;   // cache model in browser IndexedDB
+
+// ─────────────────────────────────────────────────────────────
+//  State
+// ─────────────────────────────────────────────────────────────
+let transcriber    = null;
+let loadedModelId  = null;
+let currentMeta    = null;   // episode info (from iTunes or derived from file)
+let currentFile    = null;   // File object if local upload
+let pendingAudioUrl = null;  // direct MP3 URL (from iTunes, if fetchable)
+let outputMarkdown = '';
+let outputFilename = '';
+
+// ─────────────────────────────────────────────────────────────
+//  DOM helpers
+// ─────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const show   = id => $(id).classList.remove('hidden');
+const hide   = id => $(id).classList.add('hidden');
+const hidden = id => $(id).classList.contains('hidden');
+
+function showNotice(msg, type = 'info', parentId = 'error-area') {
+  const d = document.createElement('div');
+  d.className = `notice notice-${type}`;
+  d.textContent = msg;
+  $(parentId).prepend(d);
+  return d;
+}
+function clearNotices() { $('error-area').innerHTML = ''; }
+
+// ─────────────────────────────────────────────────────────────
+//  Formatters
+// ─────────────────────────────────────────────────────────────
+function fmtDur(ms) {
+  if (!ms) return 'Unknown';
+  const s = Math.round(ms / 1000);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  if (h > 0) return `${h}:${pad(m)}:${pad(sec)}`;
+  return `${m}:${pad(sec)}`;
+}
+function fmtSec(s) { return fmtDur(s * 1000); }
+function fmtSize(b) {
+  return b >= 1024*1024 ? `${(b/1024/1024).toFixed(1)} MB` : `${(b/1024).toFixed(0)} KB`;
+}
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function toSlug(str) {
+  return str.toLowerCase()
+    .replace(/['']/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+function stripHtml(s) { return (s || '').replace(/<[^>]*>/g, '').trim(); }
+
+// ─────────────────────────────────────────────────────────────
+//  iTunes lookup
+// ─────────────────────────────────────────────────────────────
+async function fetchAppleEpisode(url) {
+  const m = url.match(/\/id(\d+)\?i=(\d+)/);
+  if (!m) throw new Error(
+    'Unrecognised Apple Podcasts URL.\nExpected: podcasts.apple.com/…/idPODCAST_ID?i=EPISODE_ID'
+  );
+  const [, podcastId, episodeId] = m;
+
+  // Try direct episode lookup first (works when episode is within iTunes index)
+  let ep = null;
+  try {
+    const r = await fetch(`https://itunes.apple.com/lookup?id=${episodeId}`);
+    const d = await r.json();
+    ep = d.results?.find(x =>
+      x.kind === 'podcast-episode' || x.wrapperType === 'podcastEpisode');
+  } catch {}
+
+  // Fallback: load up to 200 episodes from the podcast feed and match by trackId
+  if (!ep) {
+    const r = await fetch(
+      `https://itunes.apple.com/lookup?id=${podcastId}&entity=podcastEpisode&limit=200`
+    );
+    const d = await r.json();
+    ep = d.results?.find(x => String(x.trackId) === episodeId);
+  }
+
+  if (!ep) throw new Error(
+    'Episode not found in iTunes index. It may be older than the 200-episode window.\n' +
+    'Try downloading the MP3 and using the file upload instead.'
+  );
+
+  return {
+    title:       ep.trackName        || 'Unknown Episode',
+    author:      ep.artistName       || ep.collectionArtistName || 'Unknown',
+    podcastName: ep.collectionName   || 'Unknown Podcast',
+    releaseDate: ep.releaseDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+    durationMs:  ep.trackTimeMillis  || null,
+    duration:    fmtDur(ep.trackTimeMillis),
+    url,
+    audioUrl:    ep.episodeUrl       || null,
+    description: stripHtml(ep.description || ep.shortDescription || ''),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Render episode card
+// ─────────────────────────────────────────────────────────────
+function renderEpisode(meta) {
+  $('ep-body').innerHTML = `
+    <div class="ep-title">${esc(meta.title)}</div>
+    <div class="ep-grid">
+      <div><span class="lbl">Podcast </span>${esc(meta.podcastName)}</div>
+      <div><span class="lbl">Author </span>${esc(meta.author)}</div>
+      <div><span class="lbl">Date </span>${esc(meta.releaseDate)}</div>
+      <div><span class="lbl">Duration </span>${esc(meta.duration)}</div>
+    </div>
+    ${meta.description ? `<div class="ep-desc">${esc(meta.description)}</div>` : ''}
+  `;
+
+  const actions = $('ep-actions');
+  actions.innerHTML = '';
+
+  if (meta.audioUrl) {
+    const dl = Object.assign(document.createElement('a'), {
+      href: meta.audioUrl, className: 'btn btn-ghost',
+      textContent: 'Download MP3',
+    });
+    dl.setAttribute('download', '');
+    actions.appendChild(dl);
+  }
+
+  const btnT = Object.assign(document.createElement('button'), {
+    className: 'btn', textContent: 'Transcribe',
+  });
+  btnT.addEventListener('click', () => startTranscription('episode'));
+  actions.appendChild(btnT);
+
+  show('card-episode');
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─────────────────────────────────────────────────────────────
+//  File-ready display (inside episode card)
+// ─────────────────────────────────────────────────────────────
+function renderFileReady(file) {
+  // If currentMeta was set by a prior URL fetch, show the episode title so
+  // the user knows the metadata will carry over into the output.
+  const metaNote = currentMeta && currentMeta.url && currentMeta.url.startsWith('http')
+    ? `<div class="notice notice-info" style="margin-bottom:0.9rem">
+         Using episode metadata from URL: <strong>${esc(currentMeta.title)}</strong>
+       </div>` : '';
+
+  $('ep-body').innerHTML = `
+    ${metaNote}
+    <div class="file-pill">
+      <span>🎵</span>
+      <span class="fp-name">${esc(file.name)}</span>
+      <span class="fp-size">${fmtSize(file.size)}</span>
+    </div>
+    ${file.size > 150 * 1024 * 1024
+      ? `<div class="notice notice-warn" style="margin-bottom:0.9rem">
+           Large file (${fmtSize(file.size)}) — transcription may use significant memory.
+           Episodes over ~2 hours can sometimes crash the browser tab.
+         </div>` : ''}
+  `;
+
+  const actions = $('ep-actions');
+  actions.innerHTML = '';
+  const btnT = Object.assign(document.createElement('button'), {
+    className: 'btn', textContent: 'Transcribe',
+  });
+  btnT.addEventListener('click', () => startTranscription('file'));
+  actions.appendChild(btnT);
+
+  show('card-episode');
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Progress UI
+// ─────────────────────────────────────────────────────────────
+function setProgress(label, pct, sub = '') {
+  $('progress-body').innerHTML = `
+    <div class="prog-label">
+      <span>${label}</span>
+      ${pct != null ? `<span class="pct">${Math.round(pct)}%</span>` : ''}
+    </div>
+    <progress value="${pct ?? 0}" max="100"></progress>
+    ${sub ? `<div class="prog-sub">${sub}</div>` : ''}
+  `;
+  show('card-progress');
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Model loader
+// ─────────────────────────────────────────────────────────────
+async function loadModel(modelId) {
+  if (transcriber && loadedModelId === modelId) return;
+  transcriber   = null;
+  loadedModelId = null;
+
+  // Detect WebGPU support
+  let device = 'wasm';
+  try {
+    if (navigator.gpu) {
+      const adapter = await navigator.gpu.requestAdapter();
+      if (adapter) device = 'webgpu';
+    }
+  } catch {}
+
+  const dtypes = device === 'webgpu'
+    ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
+    : 'q8';
+
+  let lastFile = '';
+  transcriber = await pipeline(
+    'automatic-speech-recognition',
+    modelId,
+    {
+      device,
+      dtype: dtypes,
+      progress_callback: (p) => {
+        if (p.status === 'downloading' || p.status === 'loading') {
+          const pct  = p.progress ?? 0;
+          const file = p.file ? p.file.split('/').pop() : '';
+          if (file && file !== lastFile) {
+            lastFile = file;
+          }
+          setProgress(
+            `Loading model${file ? ': ' + file : ''}`,
+            pct,
+            `${device === 'webgpu' ? 'WebGPU' : 'WASM'} mode · cached after first download`
+          );
+        }
+      }
+    }
+  );
+  loadedModelId = modelId;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Transcription
+// ─────────────────────────────────────────────────────────────
+async function startTranscription(mode) {
+  clearNotices();
+  hide('card-output');
+
+  // Disable all transcribe buttons
+  document.querySelectorAll('#ep-actions .btn:not(.btn-ghost)').forEach(b => b.disabled = true);
+
+  const modelId = $('model-select').value;
+
+  try {
+    // ── load model ──
+    await loadModel(modelId);
+
+    // ── resolve audio source ──
+    let audioSrc;
+    let durationMs = currentMeta?.durationMs ?? null;
+
+    if (mode === 'file') {
+      // Local file upload — always works, no CORS
+      const objUrl = URL.createObjectURL(currentFile);
+
+      // Probe duration via Audio element
+      try {
+        durationMs = await probeDuration(currentFile);
+        if (currentMeta) {
+          currentMeta.durationMs = durationMs;
+          currentMeta.duration   = fmtDur(durationMs);
+        }
+      } catch {}
+
+      audioSrc = objUrl;
+
+    } else {
+      // Episode from Apple Podcasts URL — try fetching directly
+      if (!currentMeta?.audioUrl) throw new Error('No audio URL found for this episode.');
+
+      // Attempt a HEAD probe to see if the host allows cross-origin fetch
+      let corsOk = false;
+      try {
+        const probe = await fetch(currentMeta.audioUrl, { method: 'HEAD', mode: 'cors' });
+        corsOk = probe.ok;
+      } catch {}
+
+      if (!corsOk) {
+        showNotice(
+          'The podcast host blocks direct browser access (CORS restriction). ' +
+          'Click "Download MP3" above to save the episode, then drag-and-drop it into the upload zone.',
+          'warn'
+        );
+        document.querySelectorAll('#ep-actions .btn:not(.btn-ghost)').forEach(b => b.disabled = false);
+        return;
+      }
+      audioSrc = currentMeta.audioUrl;
+    }
+
+    // ── run transcription ──
+    setProgress('Transcribing…', 0,
+      durationMs ? `Audio: ${fmtDur(durationMs)} · this may take a few minutes` : 'Running…');
+
+    let chunksComplete = 0;
+    const estimatedChunks = durationMs ? Math.max(1, Math.ceil(durationMs / 1000 / 25)) : null;
+
+    const result = await transcriber(audioSrc, {
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      return_timestamps: true,
+      chunk_callback: () => {
+        chunksComplete++;
+        if (estimatedChunks) {
+          const pct = Math.min(98, (chunksComplete / estimatedChunks) * 100);
+          setProgress('Transcribing…', pct,
+            `~${fmtSec(chunksComplete * 25)} of ${fmtDur(durationMs)} processed`);
+        }
+      },
+    });
+
+    // Revoke object URL if we made one
+    if (mode === 'file') URL.revokeObjectURL(audioSrc);
+
+    // ── build output ──
+    const meta = currentMeta || {
+      title:       currentFile?.name.replace(/\.[^.]+$/, '') || 'Transcript',
+      author:      'Unknown',
+      podcastName: 'Unknown',
+      releaseDate: new Date().toISOString().split('T')[0],
+      duration:    durationMs ? fmtDur(durationMs) : 'Unknown',
+      url:         currentFile?.name || '',
+      description: '',
+    };
+
+    outputMarkdown = buildLLMWikiSource(meta, result);
+    outputFilename = `${meta.releaseDate}-${toSlug(meta.title)}.md`;
+
+    $('out-pre').textContent = outputMarkdown;
+    hide('card-progress');
+    show('card-output');
+
+  } catch (err) {
+    showNotice(`Error: ${err.message}`, 'error');
+    hide('card-progress');
+    document.querySelectorAll('#ep-actions .btn:not(.btn-ghost)').forEach(b => b.disabled = false);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Duration probe via <audio>
+// ─────────────────────────────────────────────────────────────
+function probeDuration(fileOrUrl) {
+  return new Promise((resolve, reject) => {
+    const src = typeof fileOrUrl === 'string'
+      ? fileOrUrl : URL.createObjectURL(fileOrUrl);
+    const a = document.createElement('audio');
+    a.preload = 'metadata';
+    a.onloadedmetadata = () => {
+      if (typeof fileOrUrl !== 'string') URL.revokeObjectURL(src);
+      resolve(a.duration * 1000);
+    };
+    a.onerror = reject;
+    a.src = src;
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+//  LLM Wiki Raw Source formatter
+// ─────────────────────────────────────────────────────────────
+function buildLLMWikiSource(meta, result) {
+  const today = new Date().toISOString().split('T')[0];
+
+  // Build transcript body — include timestamps if available
+  let body;
+  if (Array.isArray(result.chunks) && result.chunks.length > 0) {
+    body = result.chunks
+      .map(c => {
+        const t = Array.isArray(c.timestamp) ? c.timestamp[0] : null;
+        const prefix = t != null ? `[${fmtSec(Math.round(t))}] ` : '';
+        return prefix + (c.text || '').trim();
+      })
+      .join('\n');
+  } else {
+    body = (result.text || '').trim();
+  }
+
+  return `---
+Title: "${meta.title}"
+Author: "${meta.author}"
+Reference: "${meta.url}"
+ContentType:
+  - "audio-transcript"
+Created: ${today}
+Processed: false
+tags:
+  - "source"
+---
+
+# ${meta.title}
+
+**Podcast:** ${meta.podcastName}
+**Author:** ${meta.author}
+**Date:** ${meta.releaseDate}
+**Duration:** ${meta.duration}
+**Source:** ${meta.url}
+${meta.description ? `\n## Description\n\n${meta.description}\n` : ''}
+## Transcript
+
+${body}
+`;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Event: Fetch Apple Podcasts URL
+// ─────────────────────────────────────────────────────────────
+async function handleFetch() {
+  clearNotices();
+  currentFile = null;
+  pendingAudioUrl = null;
+
+  const url = $('url-input').value.trim();
+  if (!url) return;
+
+  $('btn-fetch').disabled = true;
+  $('btn-fetch').textContent = 'Fetching…';
+
+  try {
+    currentMeta = await fetchAppleEpisode(url);
+    renderEpisode(currentMeta);
+  } catch (err) {
+    showNotice(err.message, 'error');
+  } finally {
+    $('btn-fetch').disabled = false;
+    $('btn-fetch').textContent = 'Fetch';
+  }
+}
+
+$('btn-fetch').addEventListener('click', handleFetch);
+$('url-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleFetch(); });
+
+// ─────────────────────────────────────────────────────────────
+//  Event: File upload / drop
+// ─────────────────────────────────────────────────────────────
+function handleFileSelected(file) {
+  if (!file) return;
+  clearNotices();
+  currentFile = file;
+
+  // If user has episode metadata from a URL fetch, keep it.
+  // Otherwise derive metadata from the filename.
+  if (!currentMeta) {
+    const nameBase = file.name.replace(/\.[^.]+$/, '');
+    currentMeta = {
+      title:       nameBase,
+      author:      'Unknown',
+      podcastName: 'Unknown',
+      releaseDate: new Date().toISOString().split('T')[0],
+      durationMs:  null,
+      duration:    'Unknown',
+      url:         file.name,
+      description: '',
+    };
+  }
+
+  renderFileReady(file);
+}
+
+$('file-input').addEventListener('change', e => handleFileSelected(e.target.files[0]));
+
+const dz = $('drop-zone');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', ()  => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFileSelected(file);
+});
+
+// ─────────────────────────────────────────────────────────────
+//  Copy / Download
+// ─────────────────────────────────────────────────────────────
+$('btn-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(outputMarkdown);
+    $('btn-copy').textContent = 'Copied!';
+    setTimeout(() => $('btn-copy').textContent = 'Copy', 2000);
+  } catch {
+    showNotice('Copy failed — please select and copy the text manually.', 'warn');
+  }
+});
+
+$('btn-download').addEventListener('click', () => {
+  const blob = new Blob([outputMarkdown], { type: 'text/markdown;charset=utf-8' });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: outputFilename,
+  });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>
