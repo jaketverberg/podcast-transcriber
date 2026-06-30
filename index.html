@@ -162,17 +162,28 @@ btn, .btn {
 /* ── progress ── */
 .prog-label {
   display: flex; justify-content: space-between;
-  font-size: 0.83rem; margin-bottom: 0.4rem;
+  font-size: 0.83rem; margin-bottom: 0.5rem;
 }
-.prog-label .pct { color: var(--accent); }
-progress {
-  width: 100%; height: 6px; appearance: none;
-  border-radius: 3px; overflow: hidden; display: block; margin-bottom: 0.6rem;
+.prog-label .pct { color: var(--accent); font-variant-numeric: tabular-nums; }
+.prog-track {
+  background: var(--bg3);
+  border-radius: 3px; height: 6px; overflow: hidden;
+  margin-bottom: 0.5rem; position: relative;
 }
-progress::-webkit-progress-bar { background: var(--bg3); border-radius: 3px; }
-progress::-webkit-progress-value { background: var(--accent); border-radius: 3px; transition: width 0.4s; }
-progress::-moz-progress-bar { background: var(--accent); border-radius: 3px; }
-.prog-sub { font-size: 0.82rem; color: var(--fg2); }
+.prog-fill {
+  height: 100%; background: var(--accent);
+  border-radius: 3px; transition: width 0.5s ease; width: 0%;
+}
+@keyframes sweep {
+  0%   { left: -45%; width: 45%; }
+  100% { left: 110%; width: 45%; }
+}
+.prog-fill.indeterminate {
+  position: absolute; width: 45%;
+  animation: sweep 1.4s ease-in-out infinite;
+}
+.prog-sub { font-size: 0.82rem; color: var(--fg1); margin-bottom: 0.25rem; }
+.prog-elapsed { font-size: 0.78rem; color: var(--fg2); font-variant-numeric: tabular-nums; }
 
 /* ── output ── */
 .out-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
@@ -319,6 +330,8 @@ env.useBrowserCache  = true;   // cache model in browser IndexedDB
 // ─────────────────────────────────────────────────────────────
 let transcriber    = null;
 let loadedModelId  = null;
+let _elapsedTimer  = null;
+let _elapsedStart  = null;
 let currentMeta    = null;   // episode info (from iTunes or derived from file)
 let currentFile    = null;   // File object if local upload
 let pendingAudioUrl = null;  // direct MP3 URL (from iTunes, if fetchable)
@@ -493,16 +506,47 @@ function renderFileReady(file) {
 // ─────────────────────────────────────────────────────────────
 //  Progress UI
 // ─────────────────────────────────────────────────────────────
+
+// Call once to set up the progress card and start the elapsed timer.
+// pct=null → animated indeterminate bar; number → filled bar.
 function setProgress(label, pct, sub = '') {
+  if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
+  const indet = pct == null;
   $('progress-body').innerHTML = `
     <div class="prog-label">
-      <span>${label}</span>
-      ${pct != null ? `<span class="pct">${Math.round(pct)}%</span>` : ''}
+      <span id="prog-lbl">${label}</span>
+      <span class="pct" id="prog-pct">${indet ? '' : Math.round(pct) + '%'}</span>
     </div>
-    <progress value="${pct ?? 0}" max="100"></progress>
-    ${sub ? `<div class="prog-sub">${sub}</div>` : ''}
+    <div class="prog-track">
+      <div class="prog-fill ${indet ? 'indeterminate' : ''}" id="prog-fill"
+           ${indet ? '' : `style="width:${Math.round(pct)}%"`}></div>
+    </div>
+    <div class="prog-sub"  id="prog-sub">${sub}</div>
+    <div class="prog-elapsed" id="prog-elapsed">Elapsed: 0s</div>
   `;
   show('card-progress');
+  _elapsedStart = Date.now();
+  _elapsedTimer = setInterval(() => {
+    const el = document.getElementById('prog-elapsed');
+    if (!el) return;
+    const s = Math.floor((Date.now() - _elapsedStart) / 1000);
+    const m = Math.floor(s / 60);
+    el.textContent = `Elapsed: ${m > 0 ? m + 'm ' : ''}${s % 60}s`;
+  }, 1000);
+}
+
+// Update bar/text without resetting the elapsed timer.
+function updateProgress(pct, sub) {
+  const fill  = document.getElementById('prog-fill');
+  const pctEl = document.getElementById('prog-pct');
+  const subEl = document.getElementById('prog-sub');
+  if (fill) { fill.classList.remove('indeterminate'); fill.style.width = Math.round(pct) + '%'; }
+  if (pctEl) pctEl.textContent = Math.round(pct) + '%';
+  if (subEl && sub != null) subEl.textContent = sub;
+}
+
+function stopProgress() {
+  if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -572,51 +616,63 @@ async function startTranscription(mode) {
     let audioSrc;
     let durationMs = currentMeta?.durationMs ?? null;
 
-    if (mode === 'file') {
-      // Local file upload — always works, no CORS
-      const objUrl = URL.createObjectURL(currentFile);
+    let blobUrl = null;   // track any object URL we create so we can revoke it
 
-      // Probe duration via Audio element
+    if (mode === 'file') {
+      setProgress('Preparing audio…', null, 'Reading file…');
       try {
         durationMs = await probeDuration(currentFile);
-        if (currentMeta) {
-          currentMeta.durationMs = durationMs;
-          currentMeta.duration   = fmtDur(durationMs);
-        }
+        if (currentMeta) { currentMeta.durationMs = durationMs; currentMeta.duration = fmtDur(durationMs); }
       } catch {}
-
-      audioSrc = objUrl;
+      blobUrl  = URL.createObjectURL(currentFile);
+      audioSrc = blobUrl;
 
     } else {
-      // Episode from Apple Podcasts URL — try fetching directly
       if (!currentMeta?.audioUrl) throw new Error('No audio URL found for this episode.');
 
-      // Attempt a HEAD probe to see if the host allows cross-origin fetch
-      let corsOk = false;
-      try {
-        const probe = await fetch(currentMeta.audioUrl, { method: 'HEAD', mode: 'cors' });
-        corsOk = probe.ok;
-      } catch {}
+      // Try fetching directly first; if blocked by CORS, retry via proxy.
+      // Pre-fetching lets us show real download-progress numbers.
+      const PROXY = 'https://corsproxy.io/?';
+      const candidates = [
+        { url: currentMeta.audioUrl,                         label: 'Downloading audio…',              note: null },
+        { url: PROXY + encodeURIComponent(currentMeta.audioUrl), label: 'Downloading audio (via proxy)…', note: 'Podcast host has CORS restrictions — using corsproxy.io to fetch the file. Whisper still runs locally.' },
+      ];
 
-      if (corsOk) {
-        audioSrc = currentMeta.audioUrl;
-      } else {
-        // Direct fetch blocked — route through a CORS proxy.
-        // The audio still gets processed locally by Whisper; only the download
-        // step passes through the proxy server.
-        const PROXY = 'https://corsproxy.io/?';
-        audioSrc = PROXY + encodeURIComponent(currentMeta.audioUrl);
-        showNotice(
-          'Podcast host blocks direct access — fetching via CORS proxy (corsproxy.io). ' +
-          'Audio is still transcribed locally on your device.',
-          'info'
-        );
+      let lastErr;
+      for (const { url, label, note } of candidates) {
+        try {
+          setProgress(label, null, 'Connecting…');
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const total  = parseInt(resp.headers.get('content-length') || '0') || null;
+          const reader = resp.body.getReader();
+          const parts  = [];
+          let received = 0;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            parts.push(value);
+            received += value.byteLength;
+            if (total) {
+              updateProgress((received / total) * 100, `${fmtSize(received)} / ${fmtSize(total)}`);
+            } else {
+              const s = document.getElementById('prog-sub');
+              if (s) s.textContent = `Downloaded ${fmtSize(received)}…`;
+            }
+          }
+          if (note) showNotice(note, 'info');
+          blobUrl  = URL.createObjectURL(new Blob(parts));
+          audioSrc = blobUrl;
+          lastErr  = null;
+          break;
+        } catch (e) { lastErr = e; }
       }
+      if (lastErr) throw new Error(`Could not download audio: ${lastErr.message}`);
     }
 
     // ── run transcription ──
     setProgress('Transcribing…', 0,
-      durationMs ? `Audio: ${fmtDur(durationMs)} · this may take a few minutes` : 'Running…');
+      durationMs ? `Audio: ${fmtDur(durationMs)} — this may take several minutes` : 'Processing…');
 
     let chunksComplete = 0;
     const estimatedChunks = durationMs ? Math.max(1, Math.ceil(durationMs / 1000 / 25)) : null;
@@ -628,15 +684,15 @@ async function startTranscription(mode) {
       chunk_callback: () => {
         chunksComplete++;
         if (estimatedChunks) {
-          const pct = Math.min(98, (chunksComplete / estimatedChunks) * 100);
-          setProgress('Transcribing…', pct,
-            `~${fmtSec(chunksComplete * 25)} of ${fmtDur(durationMs)} processed`);
+          updateProgress(
+            Math.min(98, (chunksComplete / estimatedChunks) * 100),
+            `~${fmtSec(chunksComplete * 25)} of ${fmtDur(durationMs)} processed`
+          );
         }
       },
     });
 
-    // Revoke object URL if we made one
-    if (mode === 'file') URL.revokeObjectURL(audioSrc);
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
 
     // ── build output ──
     const meta = currentMeta || {
@@ -653,10 +709,12 @@ async function startTranscription(mode) {
     outputFilename = `${meta.releaseDate}-${toSlug(meta.title)}.md`;
 
     $('out-pre').textContent = outputMarkdown;
+    stopProgress();
     hide('card-progress');
     show('card-output');
 
   } catch (err) {
+    stopProgress();
     showNotice(`Error: ${err.message}`, 'error');
     hide('card-progress');
     document.querySelectorAll('#ep-actions .btn:not(.btn-ghost)').forEach(b => b.disabled = false);
