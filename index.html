@@ -236,15 +236,145 @@ btn, .btn {
 .file-pill .fp-size { color: var(--fg2); margin-left: auto; }
 
 .hidden { display: none !important; }
+
+/* ── auth overlay ── */
+.auth-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: var(--bg0);
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.auth-card {
+  background: var(--bg1); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 2rem;
+  width: 100%; max-width: 380px; text-align: center;
+}
+.auth-card h1 { font-size: 1.4rem; color: var(--accent); margin-bottom: 0.3rem; }
+.auth-card > p { color: var(--fg2); font-size: 0.875rem; margin-bottom: 1.5rem; }
+.auth-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+.auth-form { text-align: left; }
+.auth-form label { display: block; font-size: 0.8rem; color: var(--fg2); margin: 0.8rem 0 0.3rem; }
+.auth-form label:first-of-type { margin-top: 0; }
+.auth-form input { width: 100%; }
+.auth-form .btn { width: 100%; margin-top: 1.25rem; padding: 0.85rem; }
+.auth-error { color: var(--red); font-size: 0.82rem; text-align: center; margin-top: 0.75rem; min-height: 1.2em; }
+.auth-link { font-size: 0.8rem; color: var(--fg2); margin-top: 1rem; }
+.auth-link a { color: var(--accent); cursor: pointer; }
+
+/* ── settings modal ── */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0,0,0,0.65);
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.modal {
+  background: var(--bg1); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 1.5rem;
+  width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.modal-header h2 { font-size: 1rem; }
+.modal-close { background: none; border: none; color: var(--fg2); cursor: pointer; font-size: 1.2rem; padding: 0.2rem 0.4rem; }
+.modal-close:hover { color: var(--fg0); }
+.modal label { display: block; font-size: 0.8rem; color: var(--fg2); margin: 0.9rem 0 0.3rem; }
+.input-row { position: relative; }
+.input-row input { width: 100%; padding-right: 3.5rem; }
+.btn-vis { position: absolute; right: 0.6rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--fg2); cursor: pointer; font-size: 0.78rem; padding: 0; }
+.btn-vis:hover { color: var(--fg0); }
+.modal-sep { border-top: 1px solid var(--border); margin: 1.25rem 0; }
+.modal-row { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+.modal-row .btn { flex: 1; }
+.field-msg { font-size: 0.78rem; margin-top: 0.35rem; min-height: 1.1em; }
+
+/* ── settings button ── */
+.header-ctrls { display: flex; justify-content: center; margin-top: 0.6rem; }
+.btn-settings { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); color: var(--fg1); cursor: pointer; font-size: 0.82rem; padding: 0.3rem 0.8rem; transition: background 0.15s; }
+.btn-settings:hover { background: var(--bg3); color: var(--fg0); }
 </style>
 </head>
 <body>
+<!-- ── AUTH OVERLAY ── -->
+<div id="auth-overlay" class="auth-overlay">
+
+  <!-- First-time setup -->
+  <div id="form-setup" class="auth-card hidden">
+    <div class="auth-icon">🎙️</div>
+    <h1>Podcast Transcriber</h1>
+    <p>Set a password to protect your API credentials.</p>
+    <div class="auth-form">
+      <label for="setup-pw">Password</label>
+      <input type="password" id="setup-pw" placeholder="Choose a password" autocomplete="new-password">
+      <label for="setup-pw2">Confirm password</label>
+      <input type="password" id="setup-pw2" placeholder="Confirm password" autocomplete="new-password">
+      <label for="setup-aai">AssemblyAI API key <span style="font-weight:400">(optional — add later in Settings)</span></label>
+      <div class="input-row">
+        <input type="password" id="setup-aai" placeholder="Paste key here to save it now" autocomplete="off">
+        <button class="btn-vis" data-target="setup-aai">Show</button>
+      </div>
+      <button class="btn" id="btn-setup">Create Password</button>
+    </div>
+    <div class="auth-error" id="setup-error"></div>
+  </div>
+
+  <!-- Login -->
+  <div id="form-login" class="auth-card hidden">
+    <div class="auth-icon">🎙️</div>
+    <h1>Podcast Transcriber</h1>
+    <p>Sign in to continue.</p>
+    <div class="auth-form">
+      <label for="login-pw">Password</label>
+      <input type="password" id="login-pw" placeholder="Enter your password" autocomplete="current-password">
+      <button class="btn" id="btn-login">Sign In</button>
+    </div>
+    <div class="auth-error" id="login-error"></div>
+    <div class="auth-link"><a id="link-reset">Forgot password? Reset the app</a></div>
+  </div>
+
+</div>
+
+<!-- ── SETTINGS MODAL ── -->
+<div id="modal-settings" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Settings</h2>
+      <button class="modal-close" id="btn-close-settings">✕</button>
+    </div>
+
+    <label for="settings-aai">AssemblyAI API key</label>
+    <div class="input-row">
+      <input type="password" id="settings-aai" placeholder="Paste API key" autocomplete="off">
+      <button class="btn-vis" data-target="settings-aai">Show</button>
+    </div>
+    <button class="btn btn-ghost" id="btn-save-aai" style="margin-top:0.6rem">Save Key</button>
+    <div class="field-msg" id="msg-aai"></div>
+
+    <div class="modal-sep"></div>
+    <strong style="font-size:0.875rem">Change password</strong>
+    <label for="set-pw-cur">Current password</label>
+    <input type="password" id="set-pw-cur" placeholder="Current password" autocomplete="current-password">
+    <label for="set-pw-new">New password</label>
+    <input type="password" id="set-pw-new" placeholder="New password" autocomplete="new-password">
+    <label for="set-pw-new2">Confirm new password</label>
+    <input type="password" id="set-pw-new2" placeholder="Confirm new password" autocomplete="new-password">
+    <button class="btn btn-ghost" id="btn-change-pw" style="width:100%;margin-top:0.6rem">Update Password</button>
+    <div class="field-msg" id="msg-pw"></div>
+
+    <div class="modal-sep"></div>
+    <div class="modal-row">
+      <button class="btn btn-ghost" id="btn-signout">Sign Out</button>
+      <button class="btn" style="background:var(--red)" id="btn-reset-app">Reset App</button>
+    </div>
+  </div>
+</div>
+
 <div class="wrap">
 
 <header>
   <h1>Podcast → Obsidian Transcriber</h1>
   <p>Transcribes podcast episodes locally in your browser — no accounts, no uploads, no cost.<br>
      Outputs LLM Wiki-compatible Raw Source notes ready to drop into your vault.</p>
+  <div class="header-ctrls">
+    <button class="btn-settings" id="btn-open-settings">⚙ Settings</button>
+  </div>
 </header>
 
 <!-- ── STEP 1: SOURCE ── -->
@@ -323,7 +453,143 @@ import { pipeline, env }
   from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3/dist/transformers.min.js';
 
 env.allowLocalModels = false;
-env.useBrowserCache  = true;   // cache model in browser IndexedDB
+env.useBrowserCache  = true;
+
+// ─────────────────────────────────────────────────────────────
+//  Storage
+// ─────────────────────────────────────────────────────────────
+const STORE = {
+  get pwHash() { return localStorage.getItem('pt_pw'); },
+  set pwHash(v){ v ? localStorage.setItem('pt_pw', v) : localStorage.removeItem('pt_pw'); },
+  get aaiKey()  { return localStorage.getItem('pt_aai'); },
+  set aaiKey(v) { v ? localStorage.setItem('pt_aai', v) : localStorage.removeItem('pt_aai'); },
+  clear() { ['pt_pw','pt_aai'].forEach(k => localStorage.removeItem(k)); },
+};
+const SESSION = {
+  get ok()  { return sessionStorage.getItem('pt_auth') === '1'; },
+  set ok(v) { v ? sessionStorage.setItem('pt_auth','1') : sessionStorage.removeItem('pt_auth'); },
+};
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Auth
+// ─────────────────────────────────────────────────────────────
+function initAuth() {
+  if (SESSION.ok) return unlockApp();
+  STORE.pwHash ? showLoginForm() : showSetupForm();
+}
+function unlockApp()    { $('auth-overlay').classList.add('hidden'); }
+function showLoginForm() {
+  $('form-login').classList.remove('hidden');
+  $('form-setup').classList.add('hidden');
+  setTimeout(() => $('login-pw').focus(), 50);
+}
+function showSetupForm() {
+  $('form-setup').classList.remove('hidden');
+  $('form-login').classList.add('hidden');
+  setTimeout(() => $('setup-pw').focus(), 50);
+}
+
+$('btn-setup').addEventListener('click', async () => {
+  const pw = $('setup-pw').value, pw2 = $('setup-pw2').value, aai = $('setup-aai').value.trim();
+  $('setup-error').textContent = '';
+  if (!pw)        return ($('setup-error').textContent = 'Password is required.');
+  if (pw !== pw2) return ($('setup-error').textContent = 'Passwords do not match.');
+  STORE.pwHash = await sha256(pw);
+  if (aai) STORE.aaiKey = aai;
+  SESSION.ok = true;
+  unlockApp();
+});
+['setup-pw','setup-pw2','setup-aai'].forEach(id =>
+  $(id).addEventListener('keydown', e => e.key === 'Enter' && $('btn-setup').click()));
+
+$('btn-login').addEventListener('click', async () => {
+  const pw = $('login-pw').value;
+  $('login-error').textContent = '';
+  if (!pw) return ($('login-error').textContent = 'Enter your password.');
+  if (await sha256(pw) !== STORE.pwHash) {
+    $('login-pw').value = '';  $('login-pw').focus();
+    return ($('login-error').textContent = 'Incorrect password.');
+  }
+  SESSION.ok = true;
+  unlockApp();
+});
+$('login-pw').addEventListener('keydown', e => e.key === 'Enter' && $('btn-login').click());
+
+$('link-reset').addEventListener('click', () => {
+  if (!confirm('This will delete your password and API key. Continue?')) return;
+  STORE.clear(); SESSION.ok = false; $('login-pw').value = '';
+  $('auth-overlay').classList.remove('hidden');
+  showSetupForm();
+});
+
+// ─────────────────────────────────────────────────────────────
+//  Settings modal
+// ─────────────────────────────────────────────────────────────
+$('btn-open-settings').addEventListener('click', () => {
+  $('settings-aai').value = STORE.aaiKey || '';
+  setFieldMsg('msg-aai', STORE.aaiKey ? '✓ API key saved' : 'No key saved yet', STORE.aaiKey ? 'green' : '');
+  $('modal-settings').classList.remove('hidden');
+});
+$('btn-close-settings').addEventListener('click', () => $('modal-settings').classList.add('hidden'));
+$('modal-settings').addEventListener('click', e => {
+  if (e.target === $('modal-settings')) $('modal-settings').classList.add('hidden');
+});
+
+$('btn-save-aai').addEventListener('click', () => {
+  const key = $('settings-aai').value.trim();
+  STORE.aaiKey = key || null;
+  setFieldMsg('msg-aai', key ? '✓ Saved' : 'Key cleared', key ? 'green' : '');
+});
+
+$('btn-change-pw').addEventListener('click', async () => {
+  const cur = $('set-pw-cur').value, next = $('set-pw-new').value, next2 = $('set-pw-new2').value;
+  setFieldMsg('msg-pw', '');
+  if (!cur || !next)  return setFieldMsg('msg-pw', 'Fill in all fields.');
+  if (next !== next2) return setFieldMsg('msg-pw', 'New passwords do not match.');
+  if (await sha256(cur) !== STORE.pwHash) return setFieldMsg('msg-pw', 'Current password is incorrect.');
+  STORE.pwHash = await sha256(next);
+  ['set-pw-cur','set-pw-new','set-pw-new2'].forEach(id => $(id).value = '');
+  setFieldMsg('msg-pw', '✓ Password updated.', 'green');
+});
+
+$('btn-signout').addEventListener('click', () => {
+  SESSION.ok = false;
+  $('modal-settings').classList.add('hidden');
+  $('auth-overlay').classList.remove('hidden');
+  showLoginForm();
+});
+
+$('btn-reset-app').addEventListener('click', () => {
+  if (!confirm('Delete your password and API key and sign out?')) return;
+  STORE.clear(); SESSION.ok = false;
+  $('modal-settings').classList.add('hidden');
+  $('auth-overlay').classList.remove('hidden');
+  showSetupForm();
+});
+
+// Show/hide password toggles
+document.querySelectorAll('.btn-vis').forEach(btn =>
+  btn.addEventListener('click', () => {
+    const inp = $(btn.dataset.target);
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    btn.textContent = show ? 'Hide' : 'Show';
+  })
+);
+
+function setFieldMsg(id, text, color = '') {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = color === 'green' ? 'var(--green)' : color === 'red' ? 'var(--red)' : 'var(--fg2)';
+}
+
+initAuth();
 
 // ─────────────────────────────────────────────────────────────
 //  State
@@ -597,6 +863,75 @@ async function loadModel(modelId) {
 }
 
 // ─────────────────────────────────────────────────────────────
+//  AssemblyAI transcription
+// ─────────────────────────────────────────────────────────────
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function transcribeWithAssemblyAI(audioUrl) {
+  const apiKey = STORE.aaiKey;
+  if (!apiKey) throw new Error('No AssemblyAI API key. Add it in Settings.');
+
+  setProgress('Sending to AssemblyAI…', null, 'Submitting audio URL…');
+
+  const submitResp = await fetch('https://api.assemblyai.com/v2/transcript', {
+    method: 'POST',
+    headers: { authorization: apiKey, 'content-type': 'application/json' },
+    body: JSON.stringify({ audio_url: audioUrl }),
+  });
+  if (!submitResp.ok) {
+    const err = await submitResp.json().catch(() => ({}));
+    throw new Error(`AssemblyAI rejected the request (${submitResp.status}): ${err.error || 'check your API key'}`);
+  }
+  const { id } = await submitResp.json();
+
+  let elapsed = 0;
+  while (true) {
+    await delay(4000);
+    elapsed += 4;
+    const pollResp = await fetch(`https://api.assemblyai.com/v2/transcript/${id}`, {
+      headers: { authorization: apiKey },
+    });
+    const data = await pollResp.json();
+
+    if (data.status === 'completed') {
+      const result = aaiToWhisperFormat(data);
+      const meta = currentMeta || {
+        title: 'Transcript', author: '', podcastName: '',
+        releaseDate: new Date().toISOString().split('T')[0],
+        duration: 'Unknown', url: audioUrl, description: '',
+      };
+      outputMarkdown = buildLLMWikiSource(meta, result);
+      outputFilename = `${meta.releaseDate}-${toSlug(meta.title)}.md`;
+      $('out-pre').textContent = outputMarkdown;
+      stopProgress(); hide('card-progress'); show('card-output');
+      return;
+    }
+    if (data.status === 'error') throw new Error(`AssemblyAI processing error: ${data.error}`);
+
+    const m = Math.floor(elapsed / 60), s = elapsed % 60;
+    setProgress('Transcribing via AssemblyAI…', null,
+      `Processing on AssemblyAI servers… ${m > 0 ? m + 'm ' : ''}${s}s elapsed`);
+  }
+}
+
+function aaiToWhisperFormat(data) {
+  if (!data.words?.length) return { text: data.text || '', chunks: [] };
+  const CHUNK_MS = 30000;
+  const chunks = [];
+  let segStart = data.words[0].start, segWords = [];
+  for (const w of data.words) {
+    if (w.start - segStart >= CHUNK_MS && segWords.length > 0) {
+      chunks.push({ timestamp: [segStart / 1000, w.start / 1000], text: ' ' + segWords.join(' ') });
+      segStart = w.start; segWords = [];
+    }
+    segWords.push(w.text);
+  }
+  if (segWords.length > 0)
+    chunks.push({ timestamp: [segStart / 1000, null], text: ' ' + segWords.join(' ') });
+  return { chunks, text: data.text || '' };
+}
+
+// ─────────────────────────────────────────────────────────────
 //  Blocked-download fallback UI
 // ─────────────────────────────────────────────────────────────
 function showBlockedDownloadUI() {
@@ -609,29 +944,37 @@ function showBlockedDownloadUI() {
   banner.style.cssText = 'width:100%; margin-bottom:0.75rem;';
   banner.innerHTML =
     '<strong>This podcast host blocks automated downloads.</strong> ' +
-    'Download the MP3 file using the button below, then drop it into the upload zone.';
+    'Download the MP3, then drop it into the upload zone below.';
   actions.appendChild(banner);
 
   if (currentMeta?.audioUrl) {
     const dl = Object.assign(document.createElement('a'), {
-      href: currentMeta.audioUrl,
-      className: 'btn',
-      textContent: 'Download MP3',
+      href: currentMeta.audioUrl, className: 'btn', textContent: 'Download MP3',
     });
-    dl.setAttribute('download', '');
-    dl.setAttribute('target', '_blank');
+    dl.setAttribute('download', ''); dl.setAttribute('target', '_blank');
     actions.appendChild(dl);
   }
 
-  // Scroll to and highlight the drop zone so the next step is obvious
+  // If no AAI key configured, suggest it as a permanent fix
+  if (!STORE.aaiKey) {
+    const tip = document.createElement('div');
+    tip.className = 'notice notice-info';
+    tip.style.cssText = 'width:100%;margin-top:0.5rem;';
+    tip.innerHTML = 'Add an <strong id="link-to-settings" style="cursor:pointer;text-decoration:underline">AssemblyAI API key in Settings</strong> to skip this step automatically next time.';
+    actions.appendChild(tip);
+    setTimeout(() => {
+      document.getElementById('link-to-settings')
+        ?.addEventListener('click', () => $('btn-open-settings').click());
+    }, 0);
+  }
+
+  // Highlight drop zone
   const dz = $('drop-zone');
   dz.style.borderColor = 'var(--accent)';
   dz.style.background  = 'rgba(137,180,250,0.06)';
   dz.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-  // Reset the border once they interact with the drop zone
-  dz.addEventListener('click',    () => { dz.style.borderColor = ''; dz.style.background = ''; }, { once: true });
-  dz.addEventListener('dragenter', () => { dz.style.borderColor = ''; dz.style.background = ''; }, { once: true });
+  dz.addEventListener('click',     () => { dz.style.borderColor = ''; dz.style.background = ''; }, { once: true });
+  dz.addEventListener('dragenter',  () => { dz.style.borderColor = ''; dz.style.background = ''; }, { once: true });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -707,13 +1050,21 @@ async function startTranscription(mode) {
       }
       if (lastErr) {
         const is403 = lastErr.message.includes('403') || lastErr.message.includes('401');
-        stopProgress();
-        hide('card-progress');
-        document.querySelectorAll('#ep-actions .btn:not(.btn-ghost)').forEach(b => b.disabled = false);
-        if (is403) {
-          showBlockedDownloadUI();
-          return;
+        if (is403 && STORE.aaiKey) {
+          // Key is configured — hand off to AssemblyAI silently
+          try {
+            await transcribeWithAssemblyAI(currentMeta.audioUrl);
+            return;
+          } catch (aaiErr) {
+            stopProgress(); hide('card-progress');
+            showNotice(`AssemblyAI fallback failed: ${aaiErr.message}`, 'error');
+            document.querySelectorAll('#ep-actions .btn:not(.btn-ghost)').forEach(b => b.disabled = false);
+            return;
+          }
         }
+        stopProgress(); hide('card-progress');
+        document.querySelectorAll('#ep-actions .btn:not(.btn-ghost)').forEach(b => b.disabled = false);
+        if (is403) { showBlockedDownloadUI(); return; }
         throw new Error(`Could not download audio: ${lastErr.message}`);
       }
     }
