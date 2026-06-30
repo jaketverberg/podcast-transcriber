@@ -456,6 +456,14 @@ env.allowLocalModels = false;
 env.useBrowserCache  = true;
 
 // ─────────────────────────────────────────────────────────────
+//  DOM helpers — must come first; everything below references $
+// ─────────────────────────────────────────────────────────────
+const $      = id => document.getElementById(id);
+const show   = id => $(id).classList.remove('hidden');
+const hide   = id => $(id).classList.add('hidden');
+const hidden = id => $(id).classList.contains('hidden');
+
+// ─────────────────────────────────────────────────────────────
 //  Storage
 // ─────────────────────────────────────────────────────────────
 const STORE = {
@@ -604,13 +612,6 @@ let pendingAudioUrl = null;  // direct MP3 URL (from iTunes, if fetchable)
 let outputMarkdown = '';
 let outputFilename = '';
 
-// ─────────────────────────────────────────────────────────────
-//  DOM helpers
-// ─────────────────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
-const show   = id => $(id).classList.remove('hidden');
-const hide   = id => $(id).classList.add('hidden');
-const hidden = id => $(id).classList.contains('hidden');
 
 function showNotice(msg, type = 'info', parentId = 'error-area') {
   const d = document.createElement('div');
